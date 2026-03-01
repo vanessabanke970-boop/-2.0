@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学术论文生成器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { background: #0e0e0e; color: #e8e0d0; font-family: 'Noto Serif SC', Georgia, serif; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #1a1a1a; }
+  ::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 2px; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  .fade-up { animation: fadeUp 0.4s ease forwards; }
+  .btn-gold {
+    background: linear-gradient(135deg, #d4a843, #9a7520);
+    color: #0e0e0e; border: none; border-radius: 8px;
+    font-family: 'Noto Serif SC', serif; font-weight: 600;
+    cursor: pointer; transition: all 0.2s ease; letter-spacing: 2px;
+  }
+  .btn-gold:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(212,168,67,0.3); }
+  .btn-gold:active { transform: translateY(0); }
+  .btn-gold:disabled { background: #1e1e1e; color: #444; cursor: not-allowed; transform: none; box-shadow: none; }
+  .section-nav-item:hover { background: #1e1e1e; }
+  input, select, textarea {
+    background: #141414; border: 1px solid #252525; border-radius: 8px;
+    color: #c8bfa8; font-family: 'Noto Serif SC', serif;
+    transition: border-color 0.2s;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #d4a84360; }
+  .cursor { animation: blink 1s infinite; color: #d4a843; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect, useCallback } = React;
+
+const STAGES = ["配置", "大纲", "生成", "润色"];
+
+const DEMO_OUTLINE = [
+  { id: "0", title: "摘要", words: 500, points: ["研究背景", "方法概述", "主要发现"] },
+  { id: "1", title: "第一章 引言", words: 1000, points: ["研究动机", "问题陈述", "研究意义"] },
+  { id: "2", title: "第二章 相关工作", words: 1800, points: ["传统方法综述", "深度学习方法", "现有局限性"] },
+  { id: "3", title: "第三章 研究方法", words: 2000, points: ["模型架构设计", "训练策略", "数据集说明"] },
+  { id: "4", title: "第四章 实验与分析", words: 2000, points: ["实验设置", "对比实验", "结果分析"] },
+  { id: "5", title: "第五章 结论", words: 600, points: ["研究总结", "主要贡献", "未来展望"] },
+  { id: "6", title: "参考文献", words: 400, points: ["引用格式：GB/T 7714"] },
+];
+
+const DEMO_CONTENT = {
+  "0": "本文针对深度学习在医学影像诊断领域面临的标注数据稀缺与模型泛化能力不足两大核心挑战，提出了一种基于半监督对比学习的医学影像分割框架（SSCL-Seg）。该框架通过构建跨模态特征对齐机制，有效利用大量无标注影像数据，在三个公开基准数据集上的实验表明，所提方法在 Dice 系数指标上分别超越现有最优方法 2.3%、3.1% 和 1.8%，同时将所需标注数据量降低至原有方法的 20%。",
+  "1": "医学影像分析是现代辅助诊断系统的核心组成部分。近年来，卷积神经网络（CNN）与视觉Transformer（ViT）的快速发展极大推动了该领域的进步，但实际临床部署仍面临两大瓶颈：其一，高质量标注数据的获取依赖专业医生的大量人工标注，成本高昂且耗时；其二，不同医院、不同设备采集的影像存在显著域偏移，导致模型泛化能力欠佳。\n\n针对上述问题，本研究提出了一种半监督对比学习框架，通过自监督预训练与少量标注数据的联合优化，在保证诊断精度的前提下显著降低标注需求。本文的主要贡献包括：（1）设计了跨模态特征对齐模块；（2）提出了基于不确定性估计的伪标签生成策略；（3）在多个公开数据集上验证了所提方法的有效性与鲁棒性。",
+  "2": "医学影像分割领域的研究可追溯至二十世纪九十年代。传统方法主要依赖手工设计的图像特征，如基于阈值的分割、主动轮廓模型（Active Contour）以及图割（Graph Cut）算法，这些方法在特定场景下表现尚可，但对噪声敏感，且泛化能力有限。\n\n近年来，以U-Net为代表的全卷积网络在医学影像分割任务中取得了突破性进展，其编解码结构配合跳跃连接有效保留了多尺度空间信息。然而，此类方法对大规模标注数据的依赖构成了实际应用的主要瓶颈。",
+  "3": "本章详细介绍所提SSCL-Seg框架的技术细节。整体架构由三个核心模块构成：特征提取骨干网络、跨模态对齐模块以及半监督训练策略。\n\n骨干网络采用预训练的ResNet-50作为编码器，通过ImageNet预训练权重进行初始化，以加速收敛并提升特征表达能力。跨模态对齐模块引入了基于注意力机制的特征校准层，将CT与MRI两种模态的特征映射至统一的隐空间。",
+  "4": "本章通过系统性实验验证所提方法的有效性。实验在三个公开数据集上进行：CHAOS（腹部多器官分割）、BraTS 2021（脑肿瘤分割）以及ACDC（心脏结构分割）。\n\n定量实验结果表明，SSCL-Seg在仅使用10%标注数据的条件下，Dice系数分别达到87.3%、84.6%和89.1%，相较于当前最优半监督方法提升了2.3%至3.1%。消融实验进一步验证了跨模态对齐模块与伪标签策略各自的独立贡献。",
+  "5": "本文提出了SSCL-Seg框架，有效应对了医学影像分割中标注稀缺的核心挑战。通过跨模态对比学习与半监督训练的有机结合，在大幅减少标注需求的同时保持了竞争力的分割性能。\n\n未来工作将着重探索以下方向：（1）将框架扩展至三维体素分割任务；（2）引入联邦学习机制以保护多中心数据隐私；（3）研究少样本迁移学习在罕见病影像分析中的应用潜力。",
+  "6": "[1] Ronneberger O, Fischer P, Brox T. U-net: Convolutional networks for biomedical image segmentation[C]. MICCAI, 2015.\n[2] Chen X, Yuan Y, Zeng G, et al. Semi-supervised semantic segmentation with cross pseudo supervision[C]. CVPR, 2021.\n[3] Wang Y, Wang H, Shen Y, et al. Semi-supervised semantic segmentation using unreliable pseudo-labels[C]. CVPR, 2022.",
+};
+
+const CHAT_RESPONSES = [
+  "已将口语化表达替换为更规范的学术用语，并强化了研究动机的逻辑推导链条。主要修改：增加了对现有研究局限性的文献支撑描述，术语表达更加严谨。",
+  "已在段落间添加承接句，调整了逻辑过渡，使问题陈述与解决方案之间的因果关系更加清晰。",
+  "已精简冗余表达，将重复论述合并，整体表达更为简洁有力。",
+  "已在关键论点后补充实验数据支撑，引用格式统一调整为 GB/T 7714 规范。",
+];
+
+function ProgressRing({ pct, size = 20 }) {
+  const r = (size - 4) / 2;
+  const circ = 2 * Math.PI * r;
+  return (
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#2a2a2a" strokeWidth={3}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#d4a843" strokeWidth={3}
+        strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)}
+        style={{ transition: "stroke-dashoffset 0.3s ease" }}/>
+    </svg>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label style={{ display:"block", marginBottom:6, fontSize:11, color:"#666", letterSpacing:1, fontFamily:"DM Mono, monospace" }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const iStyle = {
+  width:"100%", padding:"10px 14px", fontSize:13,
+};
+
+function App() {
+  const [stage, setStage] = useState(0);
+  const [form, setForm] = useState({ title:"", field:"", degree:"本科", words:"8000", cite:"GB/T 7714" });
+  const [outline, setOutline] = useState(DEMO_OUTLINE);
+  const [genProgress, setGenProgress] = useState({});
+  const [genStatuses, setGenStatuses] = useState({});
+  const [currentSec, setCurrentSec] = useState(null);
+  const [content, setContent] = useState({});
+  const [activeSection, setActiveSection] = useState("0");
+  const [chatInput, setChatInput] = useState("");
+  const [chatHistory, setChatHistory] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [streamTexts, setStreamTexts] = useState({});
+  const chatEndRef = useRef(null);
+  const chatCountRef = useRef(0);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior:"smooth" });
+  }, [chatHistory, chatLoading]);
+
+  const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleGenerateOutline = () => {
+    if (!form.title.trim()) return;
+    setStage(1);
+  };
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  const handleStartGenerate = async () => {
+    setStage(2);
+    setContent({});
+    setGenProgress({});
+    setGenStatuses({});
+    setStreamTexts({});
+
+    for (let i = 0; i < outline.length; i++) {
+      const sec = outline[i];
+      setCurrentSec(sec.id);
+      setGenStatuses(p => ({ ...p, [sec.id]: "generating" }));
+
+      // progress animation
+      for (let p = 0; p <= 100; p += Math.floor(Math.random() * 12) + 6) {
+        setGenProgress(prev => ({ ...prev, [sec.id]: Math.min(p, 95) }));
+        await sleep(80);
+      }
+
+      const fullText = DEMO_CONTENT[sec.id] || `本节内容基于以下要点自动生成：${sec.points.join("、")}。该章节结合相关领域最新研究成果，从理论与实验两个维度进行深入阐述，为全文论证体系提供有力支撑。`;
+
+      // stream text
+      setContent(p => ({ ...p, [sec.id]: "" }));
+      setStreamTexts(p => ({ ...p, [sec.id]: true }));
+      let displayed = "";
+      const chars = fullText.split("");
+      for (let j = 0; j < chars.length; j += Math.floor(Math.random()*3)+2) {
+        displayed = fullText.slice(0, j + Math.floor(Math.random()*3)+2);
+        setContent(p => ({ ...p, [sec.id]: displayed }));
+        await sleep(22);
+      }
+      setContent(p => ({ ...p, [sec.id]: fullText }));
+      setStreamTexts(p => ({ ...p, [sec.id]: false }));
+
+      setGenProgress(p => ({ ...p, [sec.id]: 100 }));
+      setGenStatuses(p => ({ ...p, [sec.id]: "done" }));
+      await sleep(150);
+    }
+
+    setCurrentSec(null);
+    setActiveSection("0");
+    setStage(3);
+  };
+
+  const handleChat = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const msg = chatInput;
+    setChatInput("");
+    setChatHistory(p => [...p, { role:"user", text:msg }]);
+    setChatLoading(true);
+    await sleep(900 + Math.random() * 600);
+    const reply = CHAT_RESPONSES[chatCountRef.current % CHAT_RESPONSES.length];
+    chatCountRef.current++;
+    setChatHistory(p => [...p, { role:"ai", text:reply }]);
+    setChatLoading(false);
+  };
+
+  const doneCount = Object.values(genStatuses).filter(s => s === "done").length;
+  const totalWords = outline.reduce((a, s) => a + s.words, 0);
+
+  return (
+    <div style={{ height:"100vh", display:"flex", flexDirection:"column" }}>
+
+      {/* Header */}
+      <header style={{
+        height:54, borderBottom:"1px solid #1a1a1a",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        padding:"0 28px", background:"#0e0e0e",
+        position:"sticky", top:0, zIndex:100, flexShrink:0,
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{
+            width:28, height:28, borderRadius:6,
+            background:"linear-gradient(135deg,#d4a843,#8b6914)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:13, fontWeight:700, color:"#0e0e0e",
+            fontFamily:"DM Mono, monospace",
+          }}>论</div>
+          <span style={{ fontSize:14, letterSpacing:2, color:"#c8bfa8", fontWeight:300 }}>学术论文生成器</span>
+        </div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:0 }}>
+          {STAGES.map((s, i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center" }}>
+              <div
+                onClick={() => i < stage && setStage(i)}
+                style={{
+                  display:"flex", alignItems:"center", gap:6,
+                  padding:"4px 10px", borderRadius:20,
+                  background: i === stage ? "#1e1a0f" : "transparent",
+                  border: i === stage ? "1px solid #d4a843" : "1px solid transparent",
+                  cursor: i < stage ? "pointer" : "default",
+                  transition:"all 0.2s",
+                }}
+              >
+                <div style={{
+                  width:17, height:17, borderRadius:"50%",
+                  background: i <= stage ? "#d4a843" : "#2a2a2a",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  fontSize:9, fontFamily:"DM Mono, monospace",
+                  color: i <= stage ? "#0e0e0e" : "#555", fontWeight:700,
+                }}>
+                  {i < stage ? "✓" : i+1}
+                </div>
+                <span style={{ fontSize:12, color: i===stage ? "#d4a843" : i<stage ? "#888" : "#444" }}>{s}</span>
+              </div>
+              {i < STAGES.length-1 && <div style={{ width:20, height:1, background: i<stage?"#d4a84350":"#222" }}/>}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontFamily:"DM Mono, monospace", fontSize:11, color:"#444", minWidth:80, textAlign:"right" }}>
+          {stage >= 2 && `${doneCount} / ${outline.length} 章节`}
+        </div>
+      </header>
+
+      {/* ========== STAGE 0: CONFIG ========== */}
+      {stage === 0 && (
+        <main style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:40, overflowY:"auto" }}>
+          <div className="fade-up" style={{ width:"100%", maxWidth:520 }}>
+            <div style={{ marginBottom:36 }}>
+              <h1 style={{ fontSize:26, fontWeight:300, letterSpacing:3, marginBottom:8 }}>开始新论文</h1>
+              <p style={{ color:"#555", fontSize:12, letterSpacing:1 }}>填写基本信息，AI 将为您生成专业的学术论文架构</p>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
+              <Field label="论文题目 *">
+                <input value={form.title} onChange={e=>setField("title",e.target.value)}
+                  placeholder="例：深度学习在医学影像诊断中的应用研究"
+                  style={iStyle}
+                  onKeyDown={e => e.key==="Enter" && handleGenerateOutline()}
+                />
+              </Field>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                <Field label="研究领域">
+                  <input value={form.field} onChange={e=>setField("field",e.target.value)}
+                    placeholder="如：计算机视觉" style={iStyle}/>
+                </Field>
+                <Field label="论文类型">
+                  <select value={form.degree} onChange={e=>setField("degree",e.target.value)} style={iStyle}>
+                    <option>本科</option><option>硕士</option><option>博士</option>
+                  </select>
+                </Field>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                <Field label="目标字数">
+                  <select value={form.words} onChange={e=>setField("words",e.target.value)} style={iStyle}>
+                    <option value="5000">5,000 字</option>
+                    <option value="8000">8,000 字</option>
+                    <option value="12000">12,000 字</option>
+                    <option value="20000">20,000 字</option>
+                  </select>
+                </Field>
+                <Field label="引用格式">
+                  <select value={form.cite} onChange={e=>setField("cite",e.target.value)} style={iStyle}>
+                    <option>GB/T 7714</option><option>APA 7th</option><option>MLA 9th</option><option>Chicago</option>
+                  </select>
+                </Field>
+              </div>
+              <button className="btn-gold" onClick={handleGenerateOutline}
+                disabled={!form.title.trim()}
+                style={{ padding:"13px 0", fontSize:14, marginTop:6 }}>
+                生成论文大纲 →
+              </button>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* ========== STAGE 1: OUTLINE ========== */}
+      {stage === 1 && (
+        <main style={{ flex:1, overflowY:"auto", padding:40 }}>
+          <div className="fade-up" style={{ maxWidth:700, margin:"0 auto" }}>
+            <div style={{ marginBottom:28 }}>
+              <p style={{ color:"#d4a843", fontSize:11, letterSpacing:3, fontFamily:"DM Mono, monospace", marginBottom:6 }}>AI 生成大纲</p>
+              <h2 style={{ fontSize:17, fontWeight:400, letterSpacing:1 }}>{form.title || "深度学习在医学影像诊断中的应用"}</h2>
+              <p style={{ color:"#555", fontSize:12, marginTop:4 }}>确认章节结构后开始生成正文</p>
+            </div>
+
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {outline.map((sec, i) => (
+                <div key={sec.id} className="fade-up" style={{
+                  background:"#141414", border:"1px solid #1e1e1e", borderRadius:8,
+                  padding:"14px 18px", display:"flex", alignItems:"flex-start", gap:14,
+                  animationDelay:`${i*50}ms`,
+                }}>
+                  <div style={{ color:"#444", fontSize:11, fontFamily:"DM Mono, monospace", paddingTop:3, minWidth:22 }}>
+                    {String(i+1).padStart(2,"0")}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:14, color:"#d4c8b0", marginBottom:7 }}>{sec.title}</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                      {sec.points.map((p,j) => (
+                        <span key={j} style={{
+                          fontSize:11, padding:"2px 8px",
+                          background:"#1a1a1a", border:"1px solid #262626",
+                          borderRadius:20, color:"#777", letterSpacing:0.3,
+                        }}>{p}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ fontFamily:"DM Mono, monospace", fontSize:11, color:"#555", whiteSpace:"nowrap", paddingTop:3 }}>
+                    ~{sec.words.toLocaleString()} 字
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop:24, display:"flex", gap:14, alignItems:"center" }}>
+              <button className="btn-gold" onClick={handleStartGenerate} style={{ padding:"12px 32px", fontSize:14 }}>
+                确认并开始生成
+              </button>
+              <span style={{ color:"#555", fontSize:12 }}>
+                共 {outline.length} 章节 · 约 {totalWords.toLocaleString()} 字
+              </span>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* ========== STAGE 2: GENERATING ========== */}
+      {stage === 2 && (
+        <main style={{ flex:1, display:"flex", overflow:"hidden" }}>
+          {/* Left progress */}
+          <div style={{ width:240, borderRight:"1px solid #1a1a1a", padding:"20px 0", overflowY:"auto", flexShrink:0 }}>
+            <p style={{ padding:"0 18px 14px", color:"#555", fontSize:10, letterSpacing:2, fontFamily:"DM Mono, monospace" }}>
+              生成进度
+            </p>
+            {outline.map(sec => (
+              <div key={sec.id} style={{
+                padding:"9px 18px", display:"flex", alignItems:"center", gap:10,
+                borderLeft: sec.id===currentSec ? "2px solid #d4a843" : "2px solid transparent",
+                transition:"border-color 0.3s",
+              }}>
+                {genStatuses[sec.id]==="done" ? (
+                  <div style={{
+                    width:18, height:18, borderRadius:"50%", flexShrink:0,
+                    background:"#d4a843", display:"flex", alignItems:"center",
+                    justifyContent:"center", fontSize:9, color:"#0e0e0e", fontWeight:700,
+                  }}>✓</div>
+                ) : sec.id===currentSec ? (
+                  <ProgressRing pct={genProgress[sec.id]||0}/>
+                ) : (
+                  <div style={{ width:18, height:18, borderRadius:"50%", border:"1px solid #2a2a2a", flexShrink:0 }}/>
+                )}
+                <span style={{
+                  fontSize:12,
+                  color: genStatuses[sec.id]==="done" ? "#c8bfa8" : sec.id===currentSec ? "#d4a843" : "#444",
+                  transition:"color 0.3s",
+                }}>{sec.title}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Content */}
+          <div style={{ flex:1, padding:"28px 36px", overflowY:"auto" }}>
+            {currentSec && (
+              <div style={{ marginBottom:20 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                  <div style={{ width:6, height:6, borderRadius:"50%", background:"#d4a843", animation:"pulseDot 1s infinite" }}/>
+                  <span style={{ color:"#d4a843", fontSize:12, fontFamily:"DM Mono, monospace", letterSpacing:1 }}>
+                    正在生成：{outline.find(s=>s.id===currentSec)?.title}
+                  </span>
+                  <span style={{ color:"#555", fontSize:11, fontFamily:"DM Mono, monospace" }}>
+                    {genProgress[currentSec]||0}%
+                  </span>
+                </div>
+                <div style={{ height:2, background:"#1e1e1e", borderRadius:1, overflow:"hidden" }}>
+                  <div style={{
+                    height:"100%", background:"linear-gradient(90deg,#d4a843,#8b6914)",
+                    width:`${genProgress[currentSec]||0}%`, transition:"width 0.3s", borderRadius:1,
+                  }}/>
+                </div>
+              </div>
+            )}
+
+            {outline.map(sec => content[sec.id] !== undefined && (
+              <div key={sec.id} className="fade-up" style={{ marginBottom:32 }}>
+                <h3 style={{ fontSize:15, fontWeight:400, color:"#d4a843", marginBottom:10, letterSpacing:1 }}>
+                  {sec.title}
+                </h3>
+                <div style={{
+                  lineHeight:2, fontSize:14, color:"#c8bfa8",
+                  borderLeft:"2px solid #222", paddingLeft:16,
+                  whiteSpace:"pre-wrap",
+                }}>
+                  {content[sec.id]}
+                  {streamTexts[sec.id] && <span className="cursor">▌</span>}
+                </div>
+              </div>
+            ))}
+
+            {Object.keys(content).length === 0 && (
+              <div style={{ textAlign:"center", paddingTop:80, color:"#444" }}>
+                <div style={{ fontSize:36, marginBottom:14, opacity:0.3 }}>✍️</div>
+                <p style={{ fontSize:13 }}>AI 正在为您撰写论文，请稍候...</p>
+              </div>
+            )}
+          </div>
+        </main>
+      )}
+
+      {/* ========== STAGE 3: POLISH ========== */}
+      {stage === 3 && (
+        <main style={{ flex:1, display:"flex", overflow:"hidden" }}>
+          {/* Section nav */}
+          <div style={{ width:200, borderRight:"1px solid #1a1a1a", padding:"16px 0", overflowY:"auto", flexShrink:0 }}>
+            <p style={{ padding:"0 14px 10px", color:"#555", fontSize:10, letterSpacing:2, fontFamily:"DM Mono, monospace" }}>
+              章节导航
+            </p>
+            {outline.map(sec => (
+              <div key={sec.id} className="section-nav-item"
+                onClick={() => setActiveSection(sec.id)}
+                style={{
+                  padding:"9px 14px", cursor:"pointer",
+                  background: activeSection===sec.id ? "#1a1a0e" : "transparent",
+                  borderLeft: activeSection===sec.id ? "2px solid #d4a843" : "2px solid transparent",
+                  transition:"all 0.15s",
+                }}>
+                <div style={{ fontSize:12, color: activeSection===sec.id ? "#d4c8a8" : "#666" }}>{sec.title}</div>
+                <div style={{ fontSize:10, color:"#444", fontFamily:"DM Mono, monospace", marginTop:2 }}>
+                  {sec.words.toLocaleString()} 字
+                </div>
+              </div>
+            ))}
+
+            <div style={{ margin:"14px", paddingTop:14, borderTop:"1px solid #1a1a1a" }}>
+              <button className="btn-gold" style={{ width:"100%", padding:"9px", fontSize:12 }}>
+                导出论文
+              </button>
+              <div style={{ display:"flex", gap:6, marginTop:8 }}>
+                {["DOCX","PDF","LaTeX"].map(f => (
+                  <button key={f} style={{
+                    flex:1, padding:"5px 0",
+                    background:"#141414", color:"#666",
+                    border:"1px solid #222", borderRadius:4,
+                    fontSize:10, fontFamily:"DM Mono, monospace", cursor:"pointer",
+                  }}>{f}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Editor */}
+          <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div style={{
+              padding:"12px 20px", borderBottom:"1px solid #1a1a1a",
+              display:"flex", alignItems:"center", gap:10, flexShrink:0,
+            }}>
+              <span style={{ fontSize:14, color:"#c8bfa8", flex:1 }}>
+                {outline.find(s=>s.id===activeSection)?.title}
+              </span>
+              {["撤销","加粗","斜体","引用"].map(t => (
+                <button key={t} style={{
+                  padding:"4px 10px", background:"#1a1a1a",
+                  border:"1px solid #252525", borderRadius:4,
+                  color:"#666", fontSize:11, cursor:"pointer",
+                  fontFamily:"'Noto Serif SC', serif",
+                }}>{t}</button>
+              ))}
+            </div>
+            <div style={{ flex:1, padding:"24px 32px", overflowY:"auto" }}>
+              <div style={{ lineHeight:2.2, fontSize:14, color:"#c8bfa8", maxWidth:640, whiteSpace:"pre-wrap" }}>
+                {content[activeSection] || outline.find(s=>s.id===activeSection)?.points.map((p,i) => (
+                  <span key={i} style={{ display:"block", color:"#555", marginBottom:12 }}>【{p}】待编辑...</span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Chat */}
+          <div style={{ width:290, borderLeft:"1px solid #1a1a1a", display:"flex", flexDirection:"column", flexShrink:0 }}>
+            <div style={{ padding:"14px 14px 10px", borderBottom:"1px solid #1a1a1a", flexShrink:0 }}>
+              <p style={{ color:"#d4a843", fontSize:11, letterSpacing:2, fontFamily:"DM Mono, monospace" }}>AI 润色助手</p>
+              <p style={{ color:"#555", fontSize:11, marginTop:2 }}>针对当前章节多轮修改</p>
+            </div>
+
+            <div style={{ flex:1, overflowY:"auto", padding:10, display:"flex", flexDirection:"column", gap:8 }}>
+              {chatHistory.length === 0 && (
+                <div style={{ textAlign:"center", paddingTop:20 }}>
+                  <p style={{ color:"#444", fontSize:12, marginBottom:12 }}>快捷指令</p>
+                  {["加强学术语气","改善章节衔接","精简冗余表达","补充论据支撑"].map(s => (
+                    <div key={s} style={{ marginBottom:6 }}>
+                      <button onClick={()=>setChatInput(s)} style={{
+                        padding:"6px 14px", background:"#141414",
+                        border:"1px solid #222", borderRadius:16,
+                        color:"#777", fontSize:11, cursor:"pointer",
+                        fontFamily:"'Noto Serif SC', serif", letterSpacing:0.5,
+                        transition:"all 0.15s",
+                      }}>{s}</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {chatHistory.map((msg, i) => (
+                <div key={i} style={{ alignSelf: msg.role==="user"?"flex-end":"flex-start", maxWidth:"88%", animation:"fadeUp 0.3s ease" }}>
+                  {msg.role==="ai" && (
+                    <div style={{ fontSize:10, color:"#d4a843", fontFamily:"DM Mono, monospace", marginBottom:3 }}>AI</div>
+                  )}
+                  <div style={{
+                    padding:"9px 12px",
+                    background: msg.role==="user" ? "#1e1a0f" : "#161616",
+                    border: `1px solid ${msg.role==="user" ? "#3a2a0a" : "#222"}`,
+                    borderRadius: msg.role==="user" ? "12px 12px 2px 12px" : "2px 12px 12px 12px",
+                    fontSize:12, lineHeight:1.7, color:"#c8bfa8",
+                  }}>{msg.text}</div>
+                </div>
+              ))}
+
+              {chatLoading && (
+                <div style={{ alignSelf:"flex-start" }}>
+                  <div style={{ fontSize:10, color:"#d4a843", fontFamily:"DM Mono, monospace", marginBottom:3 }}>AI</div>
+                  <div style={{
+                    padding:"10px 14px", background:"#161616",
+                    border:"1px solid #222", borderRadius:"2px 12px 12px 12px",
+                    display:"flex", gap:4, alignItems:"center",
+                  }}>
+                    {[0,0.2,0.4].map((d,i) => (
+                      <div key={i} style={{
+                        width:5, height:5, borderRadius:"50%", background:"#d4a843",
+                        animation:`pulseDot 1s ${d}s infinite`,
+                      }}/>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef}/>
+            </div>
+
+            <div style={{ padding:10, borderTop:"1px solid #1a1a1a", flexShrink:0 }}>
+              <div style={{ display:"flex", gap:8 }}>
+                <textarea
+                  value={chatInput}
+                  onChange={e=>setChatInput(e.target.value)}
+                  placeholder="描述修改需求..."
+                  rows={2}
+                  onKeyDown={e => { if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleChat(); }}}
+                  style={{
+                    flex:1, padding:"8px 10px", fontSize:12,
+                    resize:"none", lineHeight:1.6,
+                  }}
+                />
+                <button onClick={handleChat} style={{
+                  width:34, background: chatInput.trim()?"linear-gradient(135deg,#d4a843,#9a7520)":"#1a1a1a",
+                  border:"none", borderRadius:8, cursor:"pointer",
+                  color: chatInput.trim()?"#0e0e0e":"#444",
+                  fontSize:16, transition:"all 0.2s",
+                }}>↑</button>
+              </div>
+              <p style={{ marginTop:5, fontSize:10, color:"#444" }}>Enter 发送 · Shift+Enter 换行</p>
+            </div>
+          </div>
+        </main>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
